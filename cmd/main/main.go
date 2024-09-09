@@ -12,6 +12,7 @@ import (
 	"zadanie-6105/internal/config"
 	"zadanie-6105/internal/server/handlers"
 	"zadanie-6105/internal/server/middleware/logger"
+
 	// "zadanie-6105/internal/storage/postgres"
 
 	"github.com/gorilla/mux"
@@ -27,7 +28,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	cfg, err := config.NewConfig()
+	_, err := config.NewConfig()
 	if err != nil {
 		log.Error(fmt.Errorf("cannot init config: %w", err).Error())
 		os.Exit(1)
@@ -51,7 +52,7 @@ func main() {
 	apiRouter.HandleFunc("/ping", handler.PingHandler)
 
 	server := &http.Server{
-		Addr: cfg.SERVER_ADDRESS,
+		Addr:    "0.0.0.0:8080",
 		Handler: apiRouter,
 	}
 
@@ -69,8 +70,8 @@ func main() {
 	case err = <-ch:
 		log.Error(err.Error())
 		os.Exit(1)
-	case <- ctx.Done():
-		timeout, cancel := context.WithTimeout(ctx, time.Second * 10)
+	case <-ctx.Done():
+		timeout, cancel := context.WithTimeout(ctx, time.Second*10)
 		defer cancel()
 		log.Warn(server.Shutdown(timeout).Error())
 		os.Exit(0)
