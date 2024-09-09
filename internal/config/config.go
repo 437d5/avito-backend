@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 )
 
@@ -30,6 +31,7 @@ func NewConfig() (*Config, error) {
 	// if config.SERVER_ADDRESS == "" {
 	// 	return nil, errors.New("SERVER_ADDRESS variable is not provided")
 	// }
+	log.Println(config.SERVER_ADDRESS)
 
 	return &config, nil
 }
