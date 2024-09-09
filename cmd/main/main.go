@@ -12,7 +12,7 @@ import (
 	"zadanie-6105/internal/config"
 	"zadanie-6105/internal/server/handlers"
 	"zadanie-6105/internal/server/middleware/logger"
-	"zadanie-6105/internal/storage/postgres"
+	// "zadanie-6105/internal/storage/postgres"
 
 	"github.com/gorilla/mux"
 )
@@ -35,13 +35,13 @@ func main() {
 	log.Info("config was initialized succesfully")
 	log.Debug("debug messages are enabled")
 
-	storage, err := postgres.New(ctx, *cfg)
-	if err != nil {
-		log.Error(fmt.Errorf("failed to init storage: %s", err).Error())
-		os.Exit(1)
-	}
+	// storage, err := postgres.New(ctx, *cfg)
+	// if err != nil {
+	// 	log.Error(fmt.Errorf("failed to init storage: %s", err).Error())
+	// 	os.Exit(1)
+	// }
 
-	handler := handlers.New(storage)
+	handler := handlers.New()
 
 	r := mux.NewRouter()
 	apiRouter := r.PathPrefix("/api").Subrouter()

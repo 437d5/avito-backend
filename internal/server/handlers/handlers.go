@@ -3,20 +3,20 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"zadanie-6105/internal/storage/postgres"
+	// "zadanie-6105/internal/storage/postgres"
 )
 
 type Handler struct {
-	Storage *postgres.Storage
+	// Storage *postgres.Storage
 }
 
 type errorResponse struct {
 	Reason string `json:"reason"`
 }
 
-func New(storage *postgres.Storage) Handler {
+func New() Handler {
 	return Handler{
-		Storage: storage,
+		// Storage: storage,
 	}
 }
 
