@@ -9,8 +9,8 @@ type Config struct {
 	POSTGRES_CONN     string
 	POSTGRES_JDBC_URL string
 	POSTGRES_USERNAME string
-	POSTGRES_PASSWORD string
 	POSTGRES_HOST     string
+	POSTGRES_PASSWORD string
 	POSTGRES_PORT     string
 	POSTGRES_DATABASE string
 }
