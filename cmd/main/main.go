@@ -28,11 +28,12 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	_, err := config.NewConfig()
+	cfg, err := config.NewConfig()
 	if err != nil {
 		log.Error(fmt.Errorf("cannot init config: %w", err).Error())
 		os.Exit(1)
 	}
+	log.Info(fmt.Sprintf("SERVER_ADDRESS env variable: %s", cfg.SERVER_ADDRESS))
 	log.Info("config was initialized succesfully")
 	log.Debug("debug messages are enabled")
 
