@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -26,4 +27,12 @@ func ParseQueryParam(r *http.Request, param string, defaultValue int) (int, erro
     }
     
     return value, nil
+}
+
+func ReturnErrorResponse(statusCode int, reason string, w http.ResponseWriter) {
+    w.WriteHeader(statusCode)
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(ErrorResponse{
+        Reason: reason,
+    })
 }

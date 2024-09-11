@@ -42,6 +42,7 @@ func main() {
 		log.Error(fmt.Errorf("failed to init storage: %s", err).Error())
 		os.Exit(1)
 	}
+	defer storage.Pool.Close()
 	log.Info("database connected")
 
 	r := mux.NewRouter()

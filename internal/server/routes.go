@@ -16,9 +16,11 @@ func LoadRoutes(r *mux.Router, storage *postgres.Storage) {
 	r.HandleFunc("/ping", defaultHandler.PingHandler).Methods(http.MethodGet)
 
 	tendersHandler := tenders.New(storage)
-	tendersListParams := []string{"limit", "{limit}", "offset", "{offset}", "service_type", "{service_type}"}
-	r.HandleFunc("/tenders", tendersHandler.TenderListHandler).Queries(tendersListParams...).Methods(http.MethodGet)
+	r.HandleFunc("/tenders", tendersHandler.TenderListHandler).Methods(http.MethodGet)
 	r.HandleFunc("/tenders/new", tendersHandler.NewTenderHandler).Methods(http.MethodPost)
-	myTendersListParams := []string{"limit", "{limit}", "offset", "{offset}", "username", "{username}"}
-	r.HandleFunc("/tenders/my", tendersHandler.MyTendersListHandler).Queries(myTendersListParams...).Methods(http.MethodGet)
+	r.HandleFunc("/tenders/my", tendersHandler.MyTendersListHandler).Methods(http.MethodGet)
+	r.HandleFunc("/tenders/{tenderID}/status", tendersHandler.TenderStatusHandler).Methods(http.MethodGet)
+	r.HandleFunc("/tenders/{tenderID}/status", tendersHandler.TenderChangeStatusHandler).Methods(http.MethodPut)
+	r.HandleFunc("/tenders/{tenderID}/edit", tendersHandler.EditTenderHandler).Methods(http.MethodPatch)
+	r.HandleFunc("/tenders/{tenderID}/rollback/{version}", tendersHandler.RollbackHandler).Methods(http.MethodPut)
 }

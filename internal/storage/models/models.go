@@ -19,3 +19,9 @@ type NewTenderRequest struct {
 	OrganizationID  string `json:"organizationId"`
 	CreatorUsername string `json:"creatorUsername"`
 }
+
+type EditTenderRequest struct {
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+	ServiceType string `json:"serviceType,omitempty"`
+}
