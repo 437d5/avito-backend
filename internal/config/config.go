@@ -15,9 +15,10 @@ type Config struct {
 	POSTGRES_DATABASE string
 }
 
+// NewConfig returns pointer to new Config instance and error if occurs
 func NewConfig() (*Config, error) {
 	config := Config{
-		SERVER_ADDRESS:    os.Getenv("SERVER_ADDRESS"),
+		SERVER_ADDRESS:    envLoad("SERVER_ADDRESS", ":8080"),
 		POSTGRES_CONN:     os.Getenv("POSTGRES_CONN"),
 		POSTGRES_JDBC_URL: os.Getenv("POSTGRES_JDBC_URL"),
 		POSTGRES_USERNAME: os.Getenv("POSTGRES_USERNAME"),
@@ -27,9 +28,16 @@ func NewConfig() (*Config, error) {
 		POSTGRES_DATABASE: os.Getenv("POSTGRES_DATABASE"),
 	}
 
-	// if config.SERVER_ADDRESS == "" {
-	// 	return nil, errors.New("SERVER_ADDRESS variable is not provided")
-	// }
-
 	return &config, nil
 }
+
+// envLoad checks if env variable with name exists
+// if not it will return fallback value
+func envLoad(name, fallback string) string {
+	var value string
+	if value = os.Getenv(name); value == "" {
+		value = fallback
+	}
+
+	return value
+} 

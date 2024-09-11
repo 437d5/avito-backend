@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 	"zadanie-6105/internal/config"
-	"zadanie-6105/internal/server/handlers"
+	"zadanie-6105/internal/server"
 	"zadanie-6105/internal/server/middleware/logger"
 
-	// "zadanie-6105/internal/storage/postgres"
+	"zadanie-6105/internal/storage/postgres"
 
 	"github.com/gorilla/mux"
 )
@@ -33,27 +33,24 @@ func main() {
 		log.Error(fmt.Errorf("cannot init config: %w", err).Error())
 		os.Exit(1)
 	}
-	log.Info(fmt.Sprintf("SERVER_ADDRESS env variable: %s", cfg.SERVER_ADDRESS))
 	log.Info("config was initialized succesfully")
+	log.Info(fmt.Sprintf("SERVER_ADDRESS env variable: %s", cfg.SERVER_ADDRESS))
 	log.Debug("debug messages are enabled")
 
-	// storage, err := postgres.New(ctx, *cfg)
-	// if err != nil {
-	// 	log.Error(fmt.Errorf("failed to init storage: %s", err).Error())
-	// 	os.Exit(1)
-	// }
-
-	handler := handlers.New()
+	storage, err := postgres.New(ctx, *cfg)
+	if err != nil {
+		log.Error(fmt.Errorf("failed to init storage: %s", err).Error())
+		os.Exit(1)
+	}
+	log.Info("database connected")
 
 	r := mux.NewRouter()
 	apiRouter := r.PathPrefix("/api").Subrouter()
-
 	apiRouter.Use(logger.New(log))
-
-	apiRouter.HandleFunc("/ping", handler.PingHandler)
+	server.LoadRoutes(apiRouter, storage)
 
 	server := &http.Server{
-		Addr:    "0.0.0.0:8080",
+		Addr:    cfg.SERVER_ADDRESS,
 		Handler: apiRouter,
 	}
 
