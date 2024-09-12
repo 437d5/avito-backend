@@ -3,7 +3,9 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log"
 	"zadanie-6105/internal/config"
+	"zadanie-6105/internal/storage/models"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -106,4 +108,106 @@ func (s *Storage) GetOrganizationIDByTender(ctx context.Context, tenderID string
 	}
 
 	return organizationID, nil
+}
+
+func (s *Storage) GetUsername(ctx context.Context, userID string) (string, error) {
+	query := `
+		SELECT username FROM public.employee
+		WHERE id=$1;
+	`
+
+	row := s.Pool.QueryRow(ctx, query, userID)
+	var username string
+	err := row.Scan(&username)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", nil
+		}
+
+		return "", fmt.Errorf("cannot get username: %w", err)
+	}
+
+	return username, nil
+}
+
+func (s *Storage) TenderExists(ctx context.Context, tenderID string) (bool, error) {
+	query := `
+		SELECT id FROM tenders
+		WHERE id=$1;
+	`
+	var id string
+	row := s.Pool.QueryRow(ctx, query, tenderID)
+	err := row.Scan(&id)
+	if err != nil {
+		if err == pgx.ErrNoRows && id == "" {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("cannot get tender: %w", err)
+	}
+
+	return true, nil
+}
+
+func (s *Storage) UserExists(ctx context.Context, userID string) (bool, error) {
+	query := `
+		SELECT id FROM public.employee
+		WHERE id=$1;
+	`
+
+	row := s.Pool.QueryRow(ctx, query, userID)
+	var username string
+	err := row.Scan(&username)
+	log.Println(err)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("cannot get username: %w", err)
+	}
+
+	return true, nil
+}
+
+func (s *Storage) GetBidOrganizationID(ctx context.Context, bidID string) (string, error) {
+	query := `
+		SELECT organization_id 
+		FROM bids
+		WHERE id=$1
+	`
+
+	row := s.Pool.QueryRow(ctx, query, bidID)
+	var organizationID string
+	err := row.Scan(&organizationID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", nil
+		}
+
+		return "", err
+	}
+
+	return organizationID, nil
+}
+
+func (s *Storage) GetBidByID(ctx context.Context, bidID string) (models.Bid, error) {
+	query := `
+		SELECT id, name, status, author_type, author_id, version, created_at
+		FROM bids
+		WHERE id=$1;
+	`
+
+	row := s.Pool.QueryRow(ctx, query, bidID)
+    var b models.Bid
+    err := row.Scan(
+        &b.ID, &b.Name, &b.Status, &b.AuthorType,
+        &b.AuthorID, &b.Version, &b.CreatedAt,
+    )
+    log.Println(err)
+    if err != nil {
+        return models.Bid{}, fmt.Errorf("cannot edit row: %w", err)
+    }
+
+    return b, nil
 }

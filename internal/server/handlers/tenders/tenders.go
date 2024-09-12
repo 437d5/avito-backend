@@ -32,13 +32,13 @@ func New(storage *postgres.Storage) *TendersHandler {
 func (h *TendersHandler) TenderListHandler(w http.ResponseWriter, r *http.Request) {
 	limit, err := handlers.ParseQueryParam(r, "limit", 5)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		handlers.ReturnErrorResponse(http.StatusBadRequest, "Неверный формат запроса или его параметры.", w)
 		return
 	}
 
 	offset, err := handlers.ParseQueryParam(r, "offset", 0)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		handlers.ReturnErrorResponse(http.StatusBadRequest, "Неверный формат запроса или его параметры.", w)
 		return
 	}
 
@@ -63,12 +63,14 @@ func (h *TendersHandler) TenderListHandler(w http.ResponseWriter, r *http.Reques
 // Создание нового тендера с заданными параметрами.
 func (h *TendersHandler) NewTenderHandler(w http.ResponseWriter, r *http.Request) {
 	var newTender models.NewTenderRequest
+	defer r.Body.Close()
 
 	err := json.NewDecoder(r.Body).Decode(&newTender)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
 	username := newTender.CreatorUsername
 	userID, err := h.Storage.GetUserID(r.Context(), username)
 	if err != nil {
@@ -151,39 +153,12 @@ func (h *TendersHandler) TenderStatusHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	userID, err := h.Storage.GetUserID(r.Context(), username)
+	statusCode, err := validateUserAndOrganization(r, w, h, username, tenderID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if userID == "" {
-		handlers.ReturnErrorResponse(http.StatusUnauthorized, "Пользователь не существует или некорректен.", w)
-		return
-	}
-
-	// FIXME не возвращает tenderOrganizationID
-	tenderOrganizationID, err := h.Storage.GetOrganizationIDByTender(r.Context(), tenderID)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if tenderOrganizationID == "" {
-		handlers.ReturnErrorResponse(http.StatusNotFound, "Тендер не найден.", w)
-		return
-	}
-	
-	userOrganizationID, err := h.Storage.GetOrganizationID(r.Context(), userID)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if userOrganizationID == "" {
-		handlers.ReturnErrorResponse(http.StatusForbidden, "Недостаточно прав для выполнения действия.", w)
-		return
-	}
-
-	if tenderOrganizationID != userOrganizationID {
-		handlers.ReturnErrorResponse(http.StatusForbidden, "Недостаточно прав для выполнения действия.", w)
+	if statusCode == HandledError {
 		return
 	}
 
@@ -195,15 +170,6 @@ func (h *TendersHandler) TenderStatusHandler(w http.ResponseWriter, r *http.Requ
 	if status == "" {
 		handlers.ReturnErrorResponse(http.StatusNotFound, "Тендер не найден.", w)
 		return
-	}
-	
-	switch status {
-	case "CREATED":
-		status = "Created"
-	case "PUBLISHED":
-		status = "Published"
-	case "CLOSED":
-		status = "Closed" 
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -232,33 +198,12 @@ func (h *TendersHandler) TenderChangeStatusHandler(w http.ResponseWriter, r *htt
 		return
 	}
 
-	userID, err := h.Storage.GetUserID(r.Context(), username)
+	statusCode, err := validateUserAndOrganization(r, w, h, username, tenderID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if userID == "" {
-		handlers.ReturnErrorResponse(http.StatusUnauthorized, "Пользователь не существует или некорректен.", w)
-		return
-	}
-
-	userOrganizationID, err := h.Storage.GetOrganizationID(r.Context(), userID)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if userOrganizationID == "" {
-		handlers.ReturnErrorResponse(http.StatusForbidden, "Недостаточно прав для выполнения действия.", w)
-		return
-	}
-
-	tenderOrganizationID, err := h.Storage.GetOrganizationIDByTender(r.Context(), tenderID)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if tenderOrganizationID == "" {
-		handlers.ReturnErrorResponse(http.StatusNotFound, "Тендер не найден.", w)
+	if statusCode == HandledError {
 		return
 	}
 
@@ -296,44 +241,19 @@ func (h *TendersHandler) EditTenderHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	var editTender models.EditTenderRequest
+	defer r.Body.Close()
 	err := json.NewDecoder(r.Body).Decode(&editTender)
 	if err != nil {
 		handlers.ReturnErrorResponse(http.StatusBadRequest, "Данные неправильно сформированы или не соответствуют требованиям.", w)
 		return
 	}
 
-	userID, err := h.Storage.GetUserID(r.Context(), username)
+	statusCode, err := validateUserAndOrganization(r, w, h, username, tenderID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if userID == "" {
-		handlers.ReturnErrorResponse(http.StatusUnauthorized, "Пользователь не существует или некорректен.", w)
-		return
-	}
-
-	userOrganizationID, err := h.Storage.GetOrganizationID(r.Context(), userID)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if userOrganizationID == "" {
-		handlers.ReturnErrorResponse(http.StatusForbidden, "Недостаточно прав для выполнения действия.", w)
-		return
-	}
-
-	tenderOrganizationID, err := h.Storage.GetOrganizationIDByTender(r.Context(), tenderID)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if tenderOrganizationID == "" {
-		handlers.ReturnErrorResponse(http.StatusNotFound, "Тендер не найден.", w)
-		return
-	}
-
-	if tenderOrganizationID != userOrganizationID {
-		handlers.ReturnErrorResponse(http.StatusForbidden, "Недостаточно прав для выполнения действия.", w)
+	if statusCode == HandledError {
 		return
 	}
 
@@ -397,38 +317,12 @@ func (h *TendersHandler) RollbackHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	userID, err := h.Storage.GetUserID(r.Context(), username)
+	statusCode, err := validateUserAndOrganization(r, w, h, username, tenderID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if userID == "" {
-		handlers.ReturnErrorResponse(http.StatusUnauthorized, "Пользователь не существует или некорректен.", w)
-		return
-	}
-
-	userOrganizationID, err := h.Storage.GetOrganizationID(r.Context(), userID)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if userOrganizationID == "" {
-		handlers.ReturnErrorResponse(http.StatusForbidden, "Недостаточно прав для выполнения действия.", w)
-		return
-	}
-
-	tenderOrganizationID, err := h.Storage.GetOrganizationIDByTender(r.Context(), tenderID)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if userOrganizationID == "" {
-		handlers.ReturnErrorResponse(http.StatusNotFound, "Тендер или версия не найдены.", w)
-		return
-	}
-
-	if userOrganizationID != tenderOrganizationID {
-		handlers.ReturnErrorResponse(http.StatusForbidden, "Недостаточно прав для выполнения действия.", w)
+	if statusCode == HandledError {
 		return
 	}
 

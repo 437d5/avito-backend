@@ -10,9 +10,10 @@ import (
 )
 
 const (
-    StatusCreated = "CREATED"
-    StatusPublished = "PUBLISHED"
-    StatusClosed = "CLOSED"
+    StatusCreated = "Created"
+    StatusPublished = "Published"
+    StatusClosed = "Closed"
+    StatusCanceled = "Canceled"
 )
 
 // GetTenderList takes limit, offset and service_type to return
@@ -294,4 +295,297 @@ func (s *Storage) RollbackTender(ctx context.Context, tenderID, version string) 
     }
 
     return tender, nil
+}
+
+func (s *Storage) InsertBid(ctx context.Context, bid models.BidRequest, organizationID string) (models.Bid, error) {
+    query := `
+        INSERT INTO public.bids (tender_id, organization_id, name, description, status, author_type, author_id, version)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING id, name, status, author_type, author_id, version, created_at;
+    `
+
+    row := s.Pool.QueryRow(ctx, query, bid.TenderID, organizationID, bid.Name, bid.Description, 
+        StatusCreated, bid.AuthorType, bid.AuthorID, 1)
+    var b models.Bid
+    err := row.Scan(
+        &b.ID, &b.Name, &b.Status, &b.AuthorType,
+        &b.AuthorID, &b.Version, &b.CreatedAt,
+    )
+    if err != nil {
+        return models.Bid{}, fmt.Errorf("cannot insert new bid: %w", err)
+    }
+
+    return b, nil
+}
+
+func (s *Storage) GetMyBidsList(ctx context.Context, limit, offset int, userID string) ([]models.Bid, error) {
+    query := `
+        SELECT id, name, status, author_type, author_id, version, created_at
+        FROM bids
+        WHERE author_id=$1;
+    `
+
+    rows, err := s.Pool.Query(ctx, query, userID)
+    if err != nil {
+        return nil, fmt.Errorf("cannot get bids list: %w", err)
+    }
+    defer rows.Close()
+
+    bids := make([]models.Bid, 0, limit)
+    for rows.Next() {
+        var b models.Bid
+        err := rows.Scan(
+            &b.ID, &b.Name, &b.Status, &b.AuthorType,
+            &b.AuthorID, &b.Version, &b.CreatedAt,
+        )
+        if err != nil {
+            return nil, fmt.Errorf("cannot scan row: %w", err)
+        }
+        bids = append(bids, b)
+    }
+
+    return bids, nil
+}
+
+func (s *Storage) GetTenderBids(ctx context.Context, limit, offset int, tenderID string) ([]models.Bid, error) {
+    query := `
+        SELECT id, name, status, author_type, author_id, version, created_at
+        FROM bids
+        WHERE tender_id=$1
+        LIMIT $2 offset $3;
+    `
+
+    rows, err := s.Pool.Query(ctx, query, tenderID, limit, offset)
+    if err != nil {
+        return nil, fmt.Errorf("cannot get bids list: %w", err)
+    }
+    defer rows.Close()
+
+    bids := make([]models.Bid, 0, limit)
+    for rows.Next() {
+        var b models.Bid
+        err := rows.Scan(
+            &b.ID, &b.Name, &b.Status, &b.AuthorType,
+            &b.AuthorID, &b.Version, &b.CreatedAt,
+        )
+        if err != nil {            
+            return nil, fmt.Errorf("cannot scan row: %w", err)
+        }
+        bids = append(bids, b)
+    }
+
+    return bids, nil
+}
+
+func (s *Storage) GetBidStatus(ctx context.Context, bidID string) (string, error) {
+    query := `
+        SELECT status
+        FROM bids
+        WHERE id=$1;
+    `
+
+    row := s.Pool.QueryRow(ctx, query, bidID)
+    var status string
+    err := row.Scan(&status)
+    if err != nil {
+        if err == pgx.ErrNoRows {
+            return "", nil
+        }
+
+        return "", err
+    }
+
+    switch status {
+    case StatusCreated:
+        status = "Created"
+    case StatusPublished:
+        status = "Published"
+    case StatusCanceled:
+        status = "Canceled"
+    }
+
+    return status, nil
+}
+
+func (s *Storage) ChangeBitStatus(ctx context.Context, bidID, status string) (models.Bid, error) {
+    query := `
+        UPDATE bids SET status=$1
+        WHERE id=$2
+        RETURNING id, name, status, author_type, author_id, version, created_at;
+    `
+
+    row := s.Pool.QueryRow(ctx, query, status, bidID)
+    var b models.Bid
+    err := row.Scan(
+        &b.ID, &b.Name, &b.Status, &b.AuthorType,
+        &b.AuthorID, &b.Version, &b.CreatedAt,
+    )
+    if err != nil {
+        return models.Bid{}, fmt.Errorf("cannot update row: %w", err)
+    }
+
+    return b, nil
+}
+
+func (s *Storage) EditBid(ctx context.Context, bidID, changeStr string) (models.Bid, error) {
+    query := fmt.Sprintf("UPDATE bids SET %s WHERE id=$1 RETURNING id, name, status, author_type, author_id, version, created_at;", changeStr)
+    log.Println(query)
+
+    row := s.Pool.QueryRow(ctx, query, bidID)
+    var b models.Bid
+    err := row.Scan(
+        &b.ID, &b.Name, &b.Status, &b.AuthorType,
+        &b.AuthorID, &b.Version, &b.CreatedAt,
+    )
+    log.Println(err)
+    if err != nil {
+        return models.Bid{}, fmt.Errorf("cannot edit row: %w", err)
+    }
+
+    log.Println(b)
+    return b, nil
+}
+
+func (s *Storage) BidDecision(ctx context.Context, bidID, decision string) (models.Bid, error) {
+    var query string
+    if decision == "Approved" {
+        query = `
+            UPDATE submissions s
+            SET accept_rate = accept_rate + 1
+            FROM bids b
+            WHERE s.bid_id = b.id AND b.id = $1
+            RETURNING b.id, b.name, b.status, b.author_type, b.author_id, b.version, b.created_at;
+        `     
+    } else {
+        query = `
+            UPDATE submissions s
+            SET rejected = true
+            FROM bids b
+            WHERE s.bid_id = b.id AND s.bid_id = $1
+            RETURNING b.id, b.name, b.status, b.author_type, b.author_id, b.version, b.created_at;
+        `
+    }
+
+    row := s.Pool.QueryRow(ctx, query, bidID)
+    var b models.Bid
+    err := row.Scan(
+        &b.ID, &b.Name, &b.Status, &b.AuthorType,
+        &b.AuthorID, &b.Version, &b.CreatedAt,
+    )
+    log.Println(err)
+    if err != nil {
+        return models.Bid{}, fmt.Errorf("cannot edit row: %w", err)
+    }
+
+    return b, nil
+}
+
+func (s *Storage) SendFeedback(ctx context.Context, bidID, userID, feedback string)  error {
+    query := `
+        INSERT INTO feedback (bid_id, feedback, creator_id)
+        VALUES ($1, $2, $3);
+    `
+    _, err := s.Pool.Exec(ctx, query, bidID, feedback, userID)
+    if err != nil {
+        return err
+    }
+
+    return nil
+}
+
+func (s *Storage) RollbackBid(ctx context.Context, bidID string, version int) error {
+    conn, err := s.Pool.Acquire(ctx)
+    if err != nil {
+        log.Println("Error acquiring connection:", err)
+        return err
+    }
+    defer conn.Release()
+
+    transaction, err := conn.BeginTx(ctx, pgx.TxOptions{})
+    if err != nil {
+        return err
+    }
+
+    _, err = transaction.Exec(ctx, "ALTER TABLE bids DISABLE TRIGGER bid_version_trigger")
+    if err != nil {
+        return transaction.Rollback(ctx)
+    }
+
+    updateQuery := `
+        UPDATE bids
+        SET tender_id = bh.tender_id,
+            organization_id = bh.organization_id,
+            name = bh.name,
+            description = bh.description,
+            status = bh.status,
+            author_type = bh.author_type,
+            author_id = bh.author_id,
+            version = $1,
+            created_at = bh.created_at
+        FROM bids_history bh
+        WHERE bh.bid_id = $2 AND bh.version = $1 AND bids.id = bh.bid_id
+    `
+
+    _, err = transaction.Exec(ctx, updateQuery, version, bidID)
+    if err != nil {
+        log.Println("Error updating bid:", err)
+        return transaction.Rollback(ctx)
+    }
+
+    deleteQuery := `
+        DELETE FROM bids_history
+        WHERE bid_id = $1 AND version >= $2;
+    `
+
+    _, err = transaction.Exec(ctx, deleteQuery, bidID, version)
+    if err != nil {
+        log.Println("Error deleting history:", err)
+        return transaction.Rollback(ctx)
+    }
+
+    _, err = transaction.Exec(ctx, "ALTER TABLE bids ENABLE TRIGGER bid_version_trigger")
+    if err != nil {
+        return transaction.Rollback(ctx)
+    }
+
+    if err := transaction.Commit(ctx); err != nil {
+        log.Println("Error committing transaction:", err)
+        return err
+    }
+
+    return nil
+}
+
+// FIXME не работаю
+func (s *Storage) GetFeedback(ctx context.Context, authorUserID string, limit, offset int) ([]models.Feedback, error) {    
+    query := `
+        SELECT f.id, f.feedback, f.created_at        
+        FROM bids b
+        JOIN feedback f ON b.id = f.bid_id        
+        WHERE b.author_id = $1
+        LIMIT $2 OFFSET $3;  
+      `
+    rows, err := s.Pool.Query(ctx, query, authorUserID, limit, offset)
+    if err != nil {        
+        return nil, fmt.Errorf("cannot get feedback list: %w", err)
+    }    
+    defer rows.Close()
+
+    feedbackList := make([]models.Feedback, 0, limit)
+    for rows.Next() {
+        var f models.Feedback        
+        err := rows.Scan(
+            &f.ID, &f.Description, &f.CreatedAt,        
+        )
+        if err != nil {            
+            return nil, fmt.Errorf("cannot scan row: %w", err)
+        }        
+        feedbackList = append(feedbackList, f)
+    }
+
+    if err := rows.Err(); err != nil {        
+        return nil, fmt.Errorf("error while reading rows: %w", err)
+    }
+
+    return feedbackList, nil
 }
