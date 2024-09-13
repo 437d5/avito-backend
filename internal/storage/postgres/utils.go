@@ -211,3 +211,24 @@ func (s *Storage) GetBidByID(ctx context.Context, bidID string) (models.Bid, err
 
     return b, nil
 }
+
+func (s *Storage) AuthorBidExist(ctx context.Context, authorID, tenderID string) (bool, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM bids
+		WHERE tender_id=$1 AND author_id=$2;
+	`
+
+	row := s.Pool.QueryRow(ctx, query, tenderID, authorID)
+	var cnt int
+	err := row.Scan(&cnt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return true, nil
+}

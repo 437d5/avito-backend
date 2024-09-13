@@ -3,7 +3,6 @@ package bids
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -266,14 +265,14 @@ func (h *BidsHandler) EditBidHandler(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	bidID := vars["bidID"]
-	log.Println(bidID)
+	
 	if bidID == "" {
 		handlers.ReturnErrorResponse(http.StatusBadRequest, "Данные неправильно сформированы или не соответствуют требованиям.", w)
 		return
 	}
 
 	username := r.URL.Query().Get("username")
-	log.Println(username)
+	
 	if username == "" {
 		handlers.ReturnErrorResponse(http.StatusBadRequest, "Неверный формат запроса или его параметры.", w)
 		return
@@ -281,7 +280,7 @@ func (h *BidsHandler) EditBidHandler(w http.ResponseWriter, r *http.Request) {
 
 	// FIXME unhandled error
 	statusCode, _ := checkOwner(w, r, h, username, bidID)
-	log.Println(statusCode)
+	
 	switch statusCode {
 	case UnhandledError:
 		return
@@ -291,7 +290,7 @@ func (h *BidsHandler) EditBidHandler(w http.ResponseWriter, r *http.Request) {
 
 	var editBid models.EditBidRequest
 	err := json.NewDecoder(r.Body).Decode(&editBid)
-	log.Println(err)
+	
 	if err != nil {
 		handlers.ReturnErrorResponse(http.StatusBadRequest, "Неверный формат запроса или его параметры.", w)
 		return
@@ -318,7 +317,7 @@ func (h *BidsHandler) EditBidHandler(w http.ResponseWriter, r *http.Request) {
 		parts = append(parts, descriptionPart)
 	}
 	changeString := strings.Join(parts[:], ", ")
-	log.Println(changeString)
+	
 
 	newBid, err := h.Storage.EditBid(r.Context(), bidID, changeString)
 	if err != nil {
@@ -334,21 +333,21 @@ func (h *BidsHandler) EditBidHandler(w http.ResponseWriter, r *http.Request) {
 func (h *BidsHandler) SubmitBidHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	bidID := vars["bidID"]
-	log.Println(bidID)
+	
 	if bidID == "" {
 		handlers.ReturnErrorResponse(http.StatusBadRequest, "Решение не может быть отправлено.", w)
 		return
 	}
 
 	username := r.URL.Query().Get("username")
-	log.Println(username)
+	
 	if username == "" {
 		handlers.ReturnErrorResponse(http.StatusBadRequest, "Решение не может быть отправлено.", w)
 		return
 	}
 
 	decision := r.URL.Query().Get("decision")
-	log.Println(decision)
+	
 	if username == "" {
 		handlers.ReturnErrorResponse(http.StatusBadRequest, "Решение не может быть отправлено.", w)
 		return
@@ -356,7 +355,7 @@ func (h *BidsHandler) SubmitBidHandler(w http.ResponseWriter, r *http.Request) {
 
 	// FIXME unhandled error
 	userID, statusCode, _ := getUserID(w, r, h, username)
-	log.Println(userID)
+	
 	switch statusCode {
 	case UnhandledError:
 		w.WriteHeader(http.StatusInternalServerError)
@@ -377,7 +376,7 @@ func (h *BidsHandler) SubmitBidHandler(w http.ResponseWriter, r *http.Request) {
 
 	// FIXME unhandled error
 	userOrganizationID, err := h.Storage.GetOrganizationID(r.Context(), userID)
-	log.Println(userOrganizationID)
+	
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -388,7 +387,7 @@ func (h *BidsHandler) SubmitBidHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenderOrganizationID, err := h.Storage.GetBidOrganizationID(r.Context(), bidID)
-	log.Println(tenderOrganizationID)
+	
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -421,14 +420,14 @@ func (h *BidsHandler) SubmitBidHandler(w http.ResponseWriter, r *http.Request) {
 func (h *BidsHandler) SendFeedbackHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	bidID := vars["bidID"]
-	log.Println(bidID)
+	
 	if bidID == "" {
 		handlers.ReturnErrorResponse(http.StatusBadRequest, "Решение не может быть отправлено.", w)
 		return
 	}
 
 	username := r.URL.Query().Get("username")
-	log.Println(username)
+	
 	if username == "" {
 		handlers.ReturnErrorResponse(http.StatusBadRequest, "Решение не может быть отправлено.", w)
 		return
@@ -436,7 +435,7 @@ func (h *BidsHandler) SendFeedbackHandler(w http.ResponseWriter, r *http.Request
 
 	// FIXME unhandled error
 	userID, statusCode, _ := getUserID(w, r, h, username)
-	log.Println(userID)
+	
 	switch statusCode {
 	case UnhandledError:
 		w.WriteHeader(http.StatusInternalServerError)
@@ -545,41 +544,78 @@ func (h *BidsHandler) RollbackHandler(w http.ResponseWriter, r *http.Request) {
 // FIXME не работаю
 func (h *BidsHandler) ViewReviewsHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	tenderID := vars["tenderId"]
+	tenderID := vars["tenderID"]
+	
 	if tenderID == "" {
-		handlers.ReturnErrorResponse(http.StatusBadRequest, "Неверный формат запроса: отсутствует идентификатор тендера.", w)
+		handlers.ReturnErrorResponse(http.StatusBadRequest, "Неверный формат запроса или его параметры.", w)
 		return
 	}
+
+	// FIXME unhandled error
+	statusCode, _ := tenderExists(r, w, h, tenderID)
+	switch statusCode {
+	case HandledError:
+		return
+	case UnhandledError:
+		w.WriteHeader(http.StatusInternalServerError)
+		return		
+	}
+	
 	authorUsername := r.URL.Query().Get("authorUsername")
+	
 	if authorUsername == "" {
-		handlers.ReturnErrorResponse(http.StatusBadRequest, "Неверный формат запроса: отсутствует имя пользователя автора.", w)
+		handlers.ReturnErrorResponse(http.StatusBadRequest, "Неверный формат запроса или его параметры.", w)
 		return
 	}
 	requesterUsername := r.URL.Query().Get("requesterUsername")
+	
 	if requesterUsername == "" {
-		handlers.ReturnErrorResponse(http.StatusBadRequest, "Неверный формат запроса: отсутствует имя пользователя запрашивающего.", w)
+		handlers.ReturnErrorResponse(http.StatusBadRequest, "Неверный формат запроса или его параметры.", w)
 		return
 	}
 
 	statusCode, limit, offset := getLimitAndOfset(w, r)
+	
 	if statusCode == HandledError {
 		return
 	}
 
+	// FIXME unhandled error
 	requesterID, statusCode, _ := getUserID(w, r, h, requesterUsername)
+	
+	switch statusCode {
+	case HandledError:
+		return
+	case UnhandledError:
+		w.WriteHeader(http.StatusInternalServerError)
+		return		
+	}
+
+	// FIXME unhandled error
+	authorID, statusCode, _ := getUserID(w, r, h, authorUsername)
+	
 	if statusCode == http.StatusNotFound {
-		handlers.ReturnErrorResponse(http.StatusUnauthorized, "Пользователь-запрашивающий не найден.", w)
+		handlers.ReturnErrorResponse(http.StatusUnauthorized, "Пользователь не существует или некорректен.", w)
 		return
 	}
 
-	authorID, statusCode, _ := getUserID(w, r, h, authorUsername)
-	if statusCode == http.StatusNotFound {
-		handlers.ReturnErrorResponse(http.StatusUnauthorized, "Пользователь-автор не найден.", w)
+	// FIXME unhandled error
+	statusCode, _ = isOrganizationResponsible(r, w, h, requesterID)
+	switch statusCode {
+	case HandledError:
+		return
+	case UnhandledError:
+		w.WriteHeader(http.StatusInternalServerError)
+		return		
+	}
+
+	authorBidsExist, err := h.Storage.AuthorBidExist(r.Context(), authorID, tenderID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	statusCode, _ = isOrganizationResponsible(r, w, h, requesterID)
-	if statusCode == http.StatusForbidden {
-		handlers.ReturnErrorResponse(http.StatusForbidden, "Недостаточно прав для просмотра отзывов.", w)
+	if !authorBidsExist {
+		handlers.ReturnErrorResponse(http.StatusNotFound, "Тендер или отзывы не найдены.", w)
 		return
 	}
 
@@ -588,9 +624,8 @@ func (h *BidsHandler) ViewReviewsHandler(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
 	if len(feedback) == 0 {
-		handlers.ReturnErrorResponse(http.StatusNotFound, "Отзывы не найдены.", w)
+		handlers.ReturnErrorResponse(http.StatusNotFound, "Тендер или отзывы не найдены.", w)
 		return
 	}
 

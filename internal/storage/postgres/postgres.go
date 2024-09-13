@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"log"
 	"zadanie-6105/internal/storage/models"
 
 	"github.com/jackc/pgx/v5"
@@ -211,21 +210,21 @@ func (s *Storage) EditTender(ctx context.Context, tenderID, changeStr string) (m
 func (s *Storage) RollbackTender(ctx context.Context, tenderID, version string) (models.Tender, error) {
     conn, err := s.Pool.Acquire(ctx)
     if err != nil {
-        log.Println("Error acquiring connection:", err)
+        
         return models.Tender{}, err
     }
     defer conn.Release()
 
     transaction, err := conn.BeginTx(ctx, pgx.TxOptions{})
     if err != nil {
-        log.Println("Error beginning transaction:", err)
+        
         return models.Tender{}, err
     }
 
     // Отключаем триггер
     _, err = transaction.Exec(ctx, "ALTER TABLE tenders DISABLE TRIGGER tender_version_trigger")
     if err != nil {
-        log.Println("Error disabling trigger:", err)
+        
         return models.Tender{}, transaction.Rollback(ctx)
     }
 
@@ -247,7 +246,7 @@ func (s *Storage) RollbackTender(ctx context.Context, tenderID, version string) 
     
     _, err = transaction.Exec(ctx, updateQuery, tenderID, version)
     if err != nil {
-        log.Println("Error updating tender:", err)
+        
         return models.Tender{}, transaction.Rollback(ctx)
     }
 
@@ -259,20 +258,20 @@ func (s *Storage) RollbackTender(ctx context.Context, tenderID, version string) 
     
     _, err = transaction.Exec(ctx, deleteQuery, tenderID, version)
     if err != nil {
-        log.Println("Error deleting history:", err)
+        
         return models.Tender{}, transaction.Rollback(ctx)
     }
 
     // Включаем триггер обратно
     _, err = transaction.Exec(ctx, "ALTER TABLE tenders ENABLE TRIGGER tender_version_trigger")
     if err != nil {
-        log.Println("Error enabling trigger:", err)
+        
         return models.Tender{}, transaction.Rollback(ctx)
     }
 
     // Коммитим транзакцию
     if err := transaction.Commit(ctx); err != nil {
-        log.Println("Error committing transaction:", err)
+        
         return models.Tender{}, err
     }
 
@@ -290,7 +289,7 @@ func (s *Storage) RollbackTender(ctx context.Context, tenderID, version string) 
     )
     
     if err != nil {
-        log.Println("Error retrieving updated tender:", err)
+        
         return models.Tender{}, err
     }
 
@@ -429,7 +428,7 @@ func (s *Storage) ChangeBitStatus(ctx context.Context, bidID, status string) (mo
 
 func (s *Storage) EditBid(ctx context.Context, bidID, changeStr string) (models.Bid, error) {
     query := fmt.Sprintf("UPDATE bids SET %s WHERE id=$1 RETURNING id, name, status, author_type, author_id, version, created_at;", changeStr)
-    log.Println(query)
+    
 
     row := s.Pool.QueryRow(ctx, query, bidID)
     var b models.Bid
@@ -437,12 +436,12 @@ func (s *Storage) EditBid(ctx context.Context, bidID, changeStr string) (models.
         &b.ID, &b.Name, &b.Status, &b.AuthorType,
         &b.AuthorID, &b.Version, &b.CreatedAt,
     )
-    log.Println(err)
+    
     if err != nil {
         return models.Bid{}, fmt.Errorf("cannot edit row: %w", err)
     }
 
-    log.Println(b)
+    
     return b, nil
 }
 
@@ -472,7 +471,7 @@ func (s *Storage) BidDecision(ctx context.Context, bidID, decision string) (mode
         &b.ID, &b.Name, &b.Status, &b.AuthorType,
         &b.AuthorID, &b.Version, &b.CreatedAt,
     )
-    log.Println(err)
+    
     if err != nil {
         return models.Bid{}, fmt.Errorf("cannot edit row: %w", err)
     }
@@ -496,7 +495,7 @@ func (s *Storage) SendFeedback(ctx context.Context, bidID, userID, feedback stri
 func (s *Storage) RollbackBid(ctx context.Context, bidID string, version int) error {
     conn, err := s.Pool.Acquire(ctx)
     if err != nil {
-        log.Println("Error acquiring connection:", err)
+        
         return err
     }
     defer conn.Release()
@@ -528,7 +527,7 @@ func (s *Storage) RollbackBid(ctx context.Context, bidID string, version int) er
 
     _, err = transaction.Exec(ctx, updateQuery, version, bidID)
     if err != nil {
-        log.Println("Error updating bid:", err)
+        
         return transaction.Rollback(ctx)
     }
 
@@ -539,7 +538,7 @@ func (s *Storage) RollbackBid(ctx context.Context, bidID string, version int) er
 
     _, err = transaction.Exec(ctx, deleteQuery, bidID, version)
     if err != nil {
-        log.Println("Error deleting history:", err)
+        
         return transaction.Rollback(ctx)
     }
 
@@ -549,7 +548,7 @@ func (s *Storage) RollbackBid(ctx context.Context, bidID string, version int) er
     }
 
     if err := transaction.Commit(ctx); err != nil {
-        log.Println("Error committing transaction:", err)
+        
         return err
     }
 
@@ -560,8 +559,8 @@ func (s *Storage) RollbackBid(ctx context.Context, bidID string, version int) er
 func (s *Storage) GetFeedback(ctx context.Context, authorUserID string, limit, offset int) ([]models.Feedback, error) {    
     query := `
         SELECT f.id, f.feedback, f.created_at        
-        FROM bids b
-        JOIN feedback f ON b.id = f.bid_id        
+        FROM feedback f
+        JOIN bids b ON f.bid_id = b.id         
         WHERE b.author_id = $1
         LIMIT $2 OFFSET $3;  
       `

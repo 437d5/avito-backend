@@ -37,6 +37,7 @@ func main() {
 	log.Info(fmt.Sprintf("SERVER_ADDRESS env variable: %s", cfg.SERVER_ADDRESS))
 	log.Debug("debug messages are enabled")
 
+	// TODO add logging to storage operations
 	storage, err := postgres.New(ctx, *cfg)
 	if err != nil {
 		log.Error(fmt.Errorf("failed to init storage: %s", err).Error())
